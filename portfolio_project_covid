@@ -1,0 +1,200 @@
+#Viewing data
+
+Select *
+From `portfolio-project-358813.Portfolio_Project.covid_deaths`
+Where continent is not null 
+order by 3,4
+
+
+# Select Data that we are going to be starting with
+
+Select 
+Location,
+date, 
+total_cases, 
+new_cases, 
+total_deaths, 
+population
+From `portfolio-project-358813.Portfolio_Project.covid_deaths`
+Where continent is not null 
+order by 1,2
+
+
+## Total Cases vs Total Deaths
+
+Select 
+Location, 
+date, 
+total_cases,
+total_deaths, 
+(total_deaths/total_cases)*100 as DeathPercentage
+From `portfolio-project-358813.Portfolio_Project.covid_deaths`
+Where location = "United States"
+and continent is not null 
+order by 1,2
+
+
+## Total Cases vs Population
+
+Select 
+Location, 
+date, 
+Population, 
+total_cases,  
+(total_cases/population)*100 as PercentPopulationInfected
+From `portfolio-project-358813.Portfolio_Project.covid_deaths`
+WHERE location = "United States"
+order by 1,2
+
+
+## Countries with Highest Infection Rate compared to Population
+
+Select 
+Location, 
+Population, 
+MAX(total_cases) as HighestInfectionCount,  
+Max((total_cases/population))*100 as PercentPopulationInfected
+From `portfolio-project-358813.Portfolio_Project.covid_deaths`
+WHERE location = "United States"
+Group by Location, Population
+order by PercentPopulationInfected desc
+
+
+## Countries with Highest Death Count per Population
+
+Select 
+Location, 
+MAX(Total_deaths) as TotalDeathCount
+From `portfolio-project-358813.Portfolio_Project.covid_deaths`
+WHERE location = "United States"
+Where continent is not null 
+Group by Location
+order by TotalDeathCount desc
+
+
+## Showing contintents with the highest death count per population
+
+Select 
+continent, 
+MAX(Total_deaths) as TotalDeathCount
+From `portfolio-project-358813.Portfolio_Project.covid_deaths`
+WHERE location = "United States"
+Where continent is not null 
+Group by continent
+order by TotalDeathCount desc
+
+
+
+# GLOBAL NUMBERS
+
+Select 
+SUM(new_cases) as total_cases, 
+SUM(cast(new_deaths as int)) as total_deaths, 
+SUM(cast(new_deaths as int))/SUM(New_Cases)*100 as DeathPercentage
+From `portfolio-project-358813.Portfolio_Project.covid_deaths`
+WHERE location = "United States"
+where continent is not null 
+Group By date
+order by 1,2
+
+
+
+# Total Population vs Vaccinations
+
+Select 
+deaths.continent, 
+deaths.location, 
+deaths.date, 
+deaths.population, 
+vaccinations.new_vaccinations, 
+SUM(vaccinations.new_vaccinations) OVER (Partition by deaths.Location Order by deaths.location, deaths.Date) as vaccinations_rolling_total
+From `portfolio-project-358813.Portfolio_Project.covid_deaths` as deaths
+Join `portfolio-project-358813.Portfolio_Project.covid_vaccinations` vaccinations
+	On deaths.location = vaccinations.location
+	and deaths.date = vaccinations.date
+where deaths.continent is not null 
+order by 2,3
+
+
+## Using CTE to perform Calculation on Partition By in previous query
+
+With vaccination_total
+as
+(
+Select 
+deaths.continent, 
+deaths.location, 
+deaths.date, 
+deaths.population, 
+vaccinations.new_vaccinations, 
+SUM(vaccinations.new_vaccinations) OVER (Partition by deaths.Location Order by deaths.location, deaths.Date) as vaccinations_rolling_total
+From `portfolio-project-358813.Portfolio_Project.covid_deaths` as deaths
+Join `portfolio-project-358813.Portfolio_Project.covid_vaccinations` as vaccinations
+	On deaths.location = vaccinations.location
+	and deaths.date = vaccinations.date
+where deaths.continent is not null 
+)
+Select *, (vaccinations_rolling_total/Population)*100
+From vaccination_total
+
+
+# Creating View to store data for later visualizations in Tableau
+##percent population vaccinated
+
+Create View portfolio-project-358813.Portfolio_Project.percent_population_vaccinated as
+WITH vaccination_total AS
+(
+SELECT 
+deaths.continent,
+deaths.location,
+deaths.date,
+deaths.population,
+vaccinations.new_vaccinations,
+SUM(vaccinations.new_vaccinations) OVER (PARTITION BY deaths.location ORDER BY deaths.location, deaths.date) as vaccinations_rolling_total
+FROM `portfolio-project-358813.Portfolio_Project.covid_deaths` AS deaths
+JOIN `portfolio-project-358813.Portfolio_Project.covid_vaccinations` as vaccinations
+ON deaths.location = vaccinations.location
+AND deaths.date = vaccinations.date
+WHERE deaths.continent is not null
+ORDER BY 2,3
+)
+SELECT *,
+(vaccinations_rolling_total/population) * 100 AS vaccination_rate
+FROM vaccination_total
+
+##global death rate
+
+CREATE VIEW portfolio-project-358813.Portfolio_Project.global_death_rate AS
+SELECT 
+SUM(new_cases) as total_cases,
+SUM(new_deaths) as total_deaths,
+SUM(new_deaths)/SUM(new_cases) * 100 as global_death_rate
+FROM `portfolio-project-358813.Portfolio_Project.covid_deaths`
+WHERE continent is not null
+ORDER BY 1,2
+
+##contraction rate
+
+CREATE VIEW portfolio-project-358813.Portfolio_Project.contraction_rate AS
+SELECT 
+location,
+date,
+total_cases,
+population,
+(total_cases/population * 100) as contraction_percentage
+FROM `portfolio-project-358813.Portfolio_Project.covid_deaths`
+WHERE location = "United States"
+ORDER BY 1,2
+
+##total death rate
+
+CREATE VIEW portfolio-project-358813.Portfolio_Project.total_death_rate AS
+SELECT 
+location,
+date,
+total_cases,
+total_deaths,
+(total_deaths/total_cases * 100) as total_death_perentage
+FROM `portfolio-project-358813.Portfolio_Project.covid_deaths`
+WHERE location = "United States"
+ORDER BY 1,2
